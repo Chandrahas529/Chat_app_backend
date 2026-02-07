@@ -1,4 +1,7 @@
 const Message = require("../Modals/Message");
+const User = require("../Modals/User");
+const admin = require("firebase-admin");
+
 
 async function handleSendMedia(ws, msg, onlineUsers) {
   const { receiverId, messageType } = msg;
@@ -30,14 +33,39 @@ async function handleSendMedia(ws, msg, onlineUsers) {
       data: { ...baseMessage, itsMe: true }
     }));
 
-    // ✅ 2️⃣ Send to receiver
     const receiverSocket = onlineUsers.get(receiverId.toString());
-    if (receiverSocket) {
-      receiverSocket.send(JSON.stringify({
-        type: "NEW_MESSAGE",
-        data: { ...baseMessage, itsMe: false }
-      }));
-    }
+
+if (receiverSocket) {
+  // ✅ Receiver online → real-time
+  receiverSocket.send(JSON.stringify({
+    type: "NEW_MESSAGE",
+    data: { ...baseMessage, itsMe: false }
+  }));
+} else {
+  // 🔔 Receiver offline → FCM notification
+  const [receiver, sender] = await Promise.all([
+    User.findById(receiverId),
+    User.findById(senderId),
+  ]);
+
+  if (receiver?.deviceToken) {
+    await admin.messaging().send({
+      token: receiver.deviceToken,
+      data: {
+        senderId: senderId.toString(),
+        senderProfile: sender.profileImage?.toString() || "",
+        senderPhone: sender.mobile?.toString() || "",
+        messageId: msg._id.toString(),
+        messageType,
+        messageText: msg.messageText || "", // media usually empty
+      },
+      android: {
+        priority: "high",
+      },
+    });
+  }
+}
+
 
   } catch (err) {
     console.error("WebSocket send media error:", err);
