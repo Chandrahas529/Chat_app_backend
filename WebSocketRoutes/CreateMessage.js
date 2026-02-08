@@ -59,7 +59,7 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
         await admin.messaging().send({
           token: receiver.deviceToken,
           notification: {
-            title: senderId.toString(),
+            title: sender.name.toString(),
             body: msg.messageText || ""
           },
           data: {
