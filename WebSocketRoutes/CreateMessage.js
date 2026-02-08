@@ -58,6 +58,10 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
       if (receiver?.deviceToken) {
         await admin.messaging().send({
           token: receiver.deviceToken,
+          notification: {
+            title: senderId.toString(),
+            body: msg.messageText || ""
+          },
           data: {
             senderId: senderId.toString(),
             senderProfile: sender.profileImage?.toString() || "",

@@ -151,48 +151,33 @@ exports.loginUser = async (req,res) => {
     }
 }
 
-exports.friendsList = async (req, res) => {
-  try {
-    const contactList = req.body;
-
-    if (!Array.isArray(contactList) || contactList.length === 0) {
-      return res.status(400).json({ message: "No contacts provided" });
-    }
-
-    const updatedContacts = [];
-
-    for (const element of contactList) {
-      try {
-        const user = await User
-          .findOne({ mobile: element.normalizedPhone })
-          .select("_id profileImage");
-        if (user) {
-          updatedContacts.push({
-            ...element,
-            availableInApp: true,
-            id: user._id,
-            profileImage: user.profileImage
-          });
-        } else {
-          updatedContacts.push({
-            ...element,
-            availableInApp: false
-          });
+exports.friendsList = async (req,res) => {
+    try{
+        const contactList = req.body;
+        if(!Array.isArray(contactList) || contactList.length == 0){
+            return res.status(400).json({message:"No contacts provide"})
         }
-      } catch (err) {
-        console.error("Error checking contact:", err);
-      }
-    }
-    return res.status(200).json({
-      message: "Contacts processed successfully",
-      data: updatedContacts
-    });
 
-  } catch (error) {
-    console.error("friendsList error:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
+        const phones = contactList.map(c => c.normalizedPhone);
+
+        const users = await User.find({mobile: { $in: phones}}).select("_id profileImage mobile").lean();
+
+        const usersMap = new Map(users.map(u => {u.mobile,u}));
+        for(const contact of contactList){
+            const user = usersMap.get(contact.normalizedPhone);
+            contact.availableInApp = !!user;
+            if(user){
+                contact.id = user._id;
+                contact.profileImage = user.profileImage;
+            }
+        }
+
+        return res.status(200).json({message:"Contact processed successfully",data:contactList});
+    }catch(error){
+        console.error("FriendList error: ",error);
+        return res.status(500).json({message: "Internal server error"});
+    }
+}
 
 exports.getProfile = async (req,res) => {
     const token = req.user.userId;
