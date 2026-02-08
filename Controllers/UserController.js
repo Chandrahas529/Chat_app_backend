@@ -162,7 +162,7 @@ exports.friendsList = async (req,res) => {
 
         const users = await User.find({mobile: { $in: phones}}).select("_id profileImage mobile").lean();
 
-        const usersMap = new Map(users.map(u => {u.mobile,u}));
+        const usersMap = new Map(users.map(u => [u.mobile,u]));
         for(const contact of contactList){
             const user = usersMap.get(contact.normalizedPhone);
             contact.availableInApp = !!user;
