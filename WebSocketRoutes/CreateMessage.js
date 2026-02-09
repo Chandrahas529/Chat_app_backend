@@ -29,10 +29,10 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
       messageUrl:
         saved.messageType !== "text"
           ? {
-              senderUrl: saved.messageUrl?.senderUrl || null,
-              receiverUrl: saved.messageUrl?.receiverUrl || null,
-              networkUrl: saved.messageUrl?.networkUrl || null,
-            }
+            senderUrl: saved.messageUrl?.senderUrl || null,
+            receiverUrl: saved.messageUrl?.receiverUrl || null,
+            networkUrl: saved.messageUrl?.networkUrl || null,
+          }
           : null,
       seenStatus: saved.seenStatus || false,
       messageAt: saved.createdAt,
@@ -48,29 +48,35 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
       receiverSocket.send(
         JSON.stringify({ type: "NEW_MESSAGE", data: { ...mappedMessage, itsMe: false } })
       );
-    } else {
-      // 4️⃣ Receiver offline → send FCM
-      const [receiver, sender] = await Promise.all([
-        User.findById(receiverId),
-        User.findById(senderId),
-      ]);
+    }
+    // 4️⃣ Receiver offline → send FCM
+    const [receiver, sender] = await Promise.all([
+      User.findById(receiverId),
+      User.findById(senderId),
+    ]);
 
-      if (receiver?.deviceToken) {
-        await admin.messaging().send({
-          token: receiver.deviceToken,
-          data: {
-            senderId: senderId.toString(),
-            senderProfile: sender.profileImage?.toString() || "",
-            senderPhone: sender.mobile.toString(),
-            messageId: saved._id.toString(),
-            messageType,
-            messageText: messageText || "",
-          },
-          android: {
-            priority: "high",
-          },
-        });
-      }
+    if (receiver?.deviceToken) {
+      await admin.messaging().send({
+        token: receiver.deviceToken,
+        notification: {
+          title: sender.mobile.toString(),
+          body:
+            messageType === "text"
+              ? messageText
+              : "📎 New attachment",
+        },
+        data: {
+          senderId: senderId.toString(),
+          senderProfile: sender.profileImage?.toString() || "",
+          senderPhone: sender.mobile.toString(),
+          messageId: saved._id.toString(),
+          messageType,
+          messageText: messageText || "",
+        },
+        android: {
+          priority: "high",
+        },
+      });
     }
   } catch (err) {
     console.error("Create message error:", err);
