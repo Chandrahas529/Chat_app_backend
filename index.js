@@ -25,6 +25,7 @@ admin.initializeApp({
 
 const app = express();
 const cors = require("cors");
+const handleDeleteMessage = require("./WebSocketRoutes/DeleteMessage");
 app.use(cors({
   origin: "*", // lock this down later
 }));
@@ -90,6 +91,10 @@ wss.on("connection", (ws, request) => {
 
         case "MESSAGE_SEEN":
           handleMessageSeen(ws, msg, onlineUsers);
+          break;
+
+        case "DELETE_MESSAGE":
+          handleDeleteMessage(ws, msg, onlineUsers);
           break;
 
         default:

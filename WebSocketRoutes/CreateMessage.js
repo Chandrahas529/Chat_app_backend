@@ -42,18 +42,66 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
     // 2️⃣ Send real-time to sender
     ws.send(JSON.stringify({ type: "NEW_MESSAGE", data: mappedMessage }));
 
-    // 3️⃣ Send real-time to receiver if online
+    const createConversationId = (id1,id2) => [id1.toString(),id2.toString()].sort().join("_");
+
+    const conversationId = createConversationId(senderId,receiverId);
+
+    const [receiver, sender] = await Promise.all([
+      User.findById(receiverId),
+      User.findById(senderId),
+    ]);
+
+    const senderUpdate = {
+      lastMessage: {
+        senderId,
+        receiverId,
+        messageType,
+        messageText,
+        seenStatus: false,
+        messageAt: saved.createdAt
+      },
+      unreadCount: 0,
+      otherUser: {
+        userId: receiver._id,
+        mobile: receiver.mobile,
+        profileImage: receiver.profileImage || mull,
+      },
+      conversationId,
+      messages: [mappedMessage]
+    }
+
+    const receiverUpdate = {
+      lastMessage: {
+        senderId,
+        receiverId,
+        messageType,
+        messageText,
+        seenStatus: false,
+        messageAt: saved.createdAt
+      },
+      unreadCount: 1,
+      otherUser: {
+        userId: sender._id,
+        mobile: sender.mobile,
+        profileImage: sender.profileImage || mull,
+      },
+      conversationId,
+      messages: [mappedMessage]
+    }
+
+    ws.send(JSON.stringify({type: "CHAT_LIST_UPDATE",data: senderUpdate}));
+
     const receiverSocket = onlineUsers.get(receiverId);
     if (receiverSocket) {
       receiverSocket.send(
         JSON.stringify({ type: "NEW_MESSAGE", data: { ...mappedMessage, itsMe: false } })
       );
+      receiverSocket.send(
+        JSON.stringify({
+          type: "CHAT_LIST_UPDATE",data: receiverUpdate
+        })
+      )
     }
-    // 4️⃣ Receiver offline → send FCM
-    const [receiver, sender] = await Promise.all([
-      User.findById(receiverId),
-      User.findById(senderId),
-    ]);
 
     if (receiver?.deviceToken) {
       await admin.messaging().send({
