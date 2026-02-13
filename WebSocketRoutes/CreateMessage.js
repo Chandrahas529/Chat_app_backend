@@ -64,7 +64,7 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
       otherUser: {
         userId: receiver._id,
         mobile: receiver.mobile,
-        profileImage: receiver.profileImage || mull,
+        profileImage: receiver.profileImage || null,
       },
       conversationId,
       messages: [mappedMessage]
