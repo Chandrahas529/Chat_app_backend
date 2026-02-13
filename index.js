@@ -13,6 +13,7 @@ const messageRoutes = require("./Routes/messageRoutes");
 const authenticateWs = require("./Middleware/AuthenticateWs");
 const handleCreateMessage = require("./WebSocketRoutes/CreateMessage");
 const handleSendMedia = require("./WebSocketRoutes/SendMedia");
+const handleDeleteMessage = require("./WebSocketRoutes/DeleteMessage");
 const userOnlineStatus = require("./WebSocketRoutes/UserOnlineStatus");
 const userLastSeen = require("./WebSocketRoutes/UserLastSeen");
 const handleMessageSeen = require("./WebSocketRoutes/SeenMessage");
@@ -25,7 +26,6 @@ admin.initializeApp({
 
 const app = express();
 const cors = require("cors");
-const handleDeleteMessage = require("./WebSocketRoutes/DeleteMessage");
 app.use(cors({
   origin: "*", // lock this down later
 }));

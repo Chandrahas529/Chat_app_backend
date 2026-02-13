@@ -83,7 +83,7 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
       otherUser: {
         userId: sender._id,
         mobile: sender.mobile,
-        profileImage: sender.profileImage || mull,
+        profileImage: sender.profileImage || null,
       },
       conversationId,
       messages: [mappedMessage]
