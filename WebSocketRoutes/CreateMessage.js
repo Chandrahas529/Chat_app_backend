@@ -104,7 +104,7 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
     }
 
     if (receiver?.deviceToken) {
-      res = await admin.messaging().send({
+      await admin.messaging().send({
         token: receiver.deviceToken,
         data: {
           senderId: senderId.toString(),
@@ -118,7 +118,6 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
           priority: "high",
         },
       });
-      console.log(res);
     }
   } catch (err) {
     console.error("Create message error:", err);
