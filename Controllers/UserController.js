@@ -6,6 +6,8 @@ const Token = require("../Modals/Token");
 const fs = require('fs');
 const path = require('path');
 const cloudinary = require("../cloudinaryConfig/cloudinaryConfig");
+const mongoose = require("mongoose");
+const Message = require("../Modals/Message");
 require("dotenv");
 
 exports.profilePicture = async (req, res) => {
@@ -46,6 +48,103 @@ exports.profilePicture = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+exports.deleteProfilePicture = async (req,res) => {
+    const userId = req.user.userId;
+    try{
+        const result = await User.findById(userId);
+        if(!result){
+            return res.status(404).json({message: "Invalid user id"});
+        }
+        if(result.profileImage || result.profileImage == ""){
+            return res.status(404).json({message: "No proifle image found"});
+        }
+        let url = result.profileImage;
+        const parts = url.split("/");
+        const folderIndex = parts.findIndex(p => p === "vaarta_app");
+
+        if(folderIndex !== -1){
+            const publicId = parts.slice(folderIndex).join("?").replace(/\.[^/.]+$/, "");
+            await cloudinary.uploader.destroy(publicId,{
+                resource_type:"image"
+            })
+        }
+        result.profileImage = "";
+        await result.save();
+        return res.status(200).json({message: "Profile image deleted successfully"});
+    }catch(err){
+        console.log("Error in deleting profile image : ",err);
+        return res.status(500).json({message:"Internal server error."});
+    }
+}
+
+exports.deleteAccount = async (req,res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try{
+        const userId = req.user.userId;
+        const { password } = req.body;
+        if(!password){
+            return res.status(400).json({message: "Password is required"});
+        }
+        const user = await User.findById(userId).session(session);
+        if(!user){
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({message:"User not found"});
+        }
+        const isMatch = await bcrypt.compare(password, user.password);
+        if(!isMatch){
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(401).json({message: "Incorrecct password"});
+        }
+
+        const messages = await Message.find({
+            $or: [{senderId:userId},{receiverId:userId}],
+        }).session(session);
+        for(const msg of messages){
+            if(msg.messageType === "image" || msg.messageType === "video"){
+                try{
+                    const url = msg.messageUrl?.senderUrl;
+                    if(url){
+                        const publicId = url.split("/").pop().split(".")[0];
+                        await cloudinary.uploader.destroy(
+                            `vaart_app/${msg.messageType === 'image' ? 'sendImages':'sendVideos'}/${publicId}`,
+                            {resource_type: msg.messageType === 'image' ? 'image' : 'video'}
+                        );
+                    }
+                }catch(err){
+                    console.log("Cloudinry delete error for account : ",err);
+                }
+            }
+        }
+        await Message.deleteMany({
+            $or: [{senderId:userId},{receiverId:userId}],
+        }).session(session);
+        if(user?.profileImage){
+            let url = result.profileImage;
+            const parts = url.split("/");
+            const folderIndex = parts.findIndex(p => p === "vaarta_app");
+
+            if(folderIndex !== -1){
+                const publicId = parts.slice(folderIndex).join("?").replace(/\.[^/.]+$/, "");
+                await cloudinary.uploader.destroy(publicId,{
+                    resource_type:"image"
+                })
+            }
+        }
+        await User.findByIdAndDelete(userId).session(session);
+        await session.commitTransaction();
+        session.endSession();
+        res.status(200).json({message: "Account and all related messages/media deleted successfully."});
+    }catch(error){
+        await session.abortTransaction();
+        session.endSession();
+        console.error("Delete account error : ",error);
+        res.status(500).json({message: "Something went wrong. Please try again later"});
+    }
+}
 
 exports.createUser = async (req,res) => {
     const { name, mobile, password } = req.body;

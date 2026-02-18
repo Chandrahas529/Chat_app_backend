@@ -25,4 +25,8 @@ router.post("/device-token",authenticate,userController.setDeviceToken);
 
 router.delete("/delete-device-token",authenticate,userController.deleteDeviceToken);
 
+router.delete("/remove-profile-image",authenticate,userController.deleteProfilePicture);
+
+router.delete("/delete-account",authenticate,userController.deleteAccount);
+
 module.exports = router;

@@ -101,23 +101,23 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
           type: "CHAT_LIST_UPDATE",data: receiverUpdate
         })
       )
-    }
-
-    if (receiver?.deviceToken) {
-      await admin.messaging().send({
-        token: receiver.deviceToken,
-        data: {
-          senderId: senderId.toString(),
-          senderProfile: sender.profileImage?.toString() || "",
-          senderPhone: sender.mobile.toString(),
-          messageId: saved._id.toString(),
-          messageType,
-          messageText: messageText || "",
-        },
-        android: {
-          priority: "high",
-        },
-      });
+    }else{
+       if (receiver?.deviceToken) {
+        await admin.messaging().send({
+          token: receiver.deviceToken,
+          data: {
+            senderId: senderId.toString(),
+            senderProfile: sender.profileImage?.toString() || "",
+            senderPhone: sender.mobile.toString(),
+            messageId: saved._id.toString(),
+            messageType,
+            messageText: messageText || "",
+          },
+          android: {
+            priority: "high",
+          },
+        });
+      }
     }
   } catch (err) {
     console.error("Create message error:", err);
