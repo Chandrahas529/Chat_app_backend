@@ -3,7 +3,7 @@ const User = require("../Modals/User");
 const admin = require("firebase-admin"); // Ensure initialized
 
 async function handleCreateMessage(ws, msg, onlineUsers) {
-  const { receiverId, messageType, messageText } = msg;
+  const { receiverId, messageType, messageText, isForward, forwardedId, forwardType, forwardContent } = msg;
   const senderId = ws.userId;
 
   if (!receiverId || !messageType) {
@@ -18,21 +18,29 @@ async function handleCreateMessage(ws, msg, onlineUsers) {
       receiverId,
       messageType,
       messageText,
+      isForward,
+      forwardedId,
+      forwardType,
+      forwardContent
     });
 
     const mappedMessage = {
       _id: saved._id.toString(),
       senderId,
       receiverId,
+      isForward,
+      forwardedId,
+      forwardType,
+      forwardContent,
       messageType: saved.messageType,
       messageText: saved.messageText || null,
       messageUrl:
         saved.messageType !== "text"
           ? {
-            senderUrl: saved.messageUrl?.senderUrl || null,
-            receiverUrl: saved.messageUrl?.receiverUrl || null,
-            networkUrl: saved.messageUrl?.networkUrl || null,
-          }
+              senderUrl: saved.messageUrl?.senderUrl || null,
+              receiverUrl: saved.messageUrl?.receiverUrl || null,
+              networkUrl: saved.messageUrl?.networkUrl || null,
+            }
           : null,
       seenStatus: saved.seenStatus || false,
       messageAt: saved.createdAt,

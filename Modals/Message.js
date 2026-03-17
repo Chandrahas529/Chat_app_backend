@@ -43,6 +43,21 @@ const messageSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    isForward:{
+        type: Boolean,
+        default: false
+    },
+    forwardedId:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref:"Messages"
+    },
+    forwardType:{
+        type: String,
+        enum: ["text", "image", "video", "file"],
+    },
+    forwardContent:{
+        type: String,
+    }
 },{timestamps:true,collection:"Messages"});
 
 module.exports = mongoose.model("Messages",messageSchema);

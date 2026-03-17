@@ -2,12 +2,12 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../Modals/User");
+const Message = require("../Modals/Message");
 const Token = require("../Modals/Token");
 const fs = require('fs');
 const path = require('path');
 const cloudinary = require("../cloudinaryConfig/cloudinaryConfig");
 const mongoose = require("mongoose");
-const Message = require("../Modals/Message");
 require("dotenv");
 
 exports.profilePicture = async (req, res) => {
@@ -56,95 +56,100 @@ exports.deleteProfilePicture = async (req,res) => {
         if(!result){
             return res.status(404).json({message: "Invalid user id"});
         }
-        if(result.profileImage || result.profileImage == ""){
-            return res.status(404).json({message: "No proifle image found"});
+        if(!result.profileImage || result.profileImage == ""){
+            return res.status(404).json({message: "No profile image found"});
         }
         let url = result.profileImage;
         const parts = url.split("/");
         const folderIndex = parts.findIndex(p => p === "vaarta_app");
 
-        if(folderIndex !== -1){
-            const publicId = parts.slice(folderIndex).join("?").replace(/\.[^/.]+$/, "");
-            await cloudinary.uploader.destroy(publicId,{
-                resource_type:"image"
-            })
+        if (folderIndex !== -1) {
+            const publicId = parts
+                .slice(folderIndex)
+                .join("/")
+                .replace(/\.[^/.]+$/, "");
+
+            await cloudinary.uploader.destroy(publicId, {
+            resource_type:"image"
+            });
         }
         result.profileImage = "";
         await result.save();
-        return res.status(200).json({message: "Profile image deleted successfully"});
+        return res.status(200).json({ message: "Profile image deleted successfully" });
     }catch(err){
-        console.log("Error in deleting profile image : ",err);
+        console.log("Error in deleteing profile image : ",err);
         return res.status(500).json({message:"Internal server error."});
     }
 }
 
-exports.deleteAccount = async (req,res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try{
-        const userId = req.user.userId;
-        const { password } = req.body;
-        if(!password){
-            return res.status(400).json({message: "Password is required"});
-        }
-        const user = await User.findById(userId).session(session);
-        if(!user){
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(404).json({message:"User not found"});
-        }
-        const isMatch = await bcrypt.compare(password, user.password);
-        if(!isMatch){
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(401).json({message: "Incorrecct password"});
-        }
+exports.deleteAccount = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-        const messages = await Message.find({
-            $or: [{senderId:userId},{receiverId:userId}],
-        }).session(session);
-        for(const msg of messages){
-            if(msg.messageType === "image" || msg.messageType === "video"){
-                try{
-                    const url = msg.messageUrl?.senderUrl;
-                    if(url){
-                        const publicId = url.split("/").pop().split(".")[0];
-                        await cloudinary.uploader.destroy(
-                            `vaart_app/${msg.messageType === 'image' ? 'sendImages':'sendVideos'}/${publicId}`,
-                            {resource_type: msg.messageType === 'image' ? 'image' : 'video'}
-                        );
-                    }
-                }catch(err){
-                    console.log("Cloudinry delete error for account : ",err);
-                }
-            }
-        }
-        await Message.deleteMany({
-            $or: [{senderId:userId},{receiverId:userId}],
-        }).session(session);
-        if(user?.profileImage){
-            let url = result.profileImage;
-            const parts = url.split("/");
-            const folderIndex = parts.findIndex(p => p === "vaarta_app");
+  try {
+    const userId = req.user.userId;
+    const { password } = req.body;
 
-            if(folderIndex !== -1){
-                const publicId = parts.slice(folderIndex).join("?").replace(/\.[^/.]+$/, "");
-                await cloudinary.uploader.destroy(publicId,{
-                    resource_type:"image"
-                })
-            }
-        }
-        await User.findByIdAndDelete(userId).session(session);
-        await session.commitTransaction();
-        session.endSession();
-        res.status(200).json({message: "Account and all related messages/media deleted successfully."});
-    }catch(error){
-        await session.abortTransaction();
-        session.endSession();
-        console.error("Delete account error : ",error);
-        res.status(500).json({message: "Something went wrong. Please try again later"});
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
     }
-}
+
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(401).json({ message: 'Incorrect password' });
+    }
+
+    // 1️⃣ Find all messages related to user
+    const messages = await Message.find({
+      $or: [{ senderId: userId }, { receiverId: userId }],
+    }).session(session);
+
+    // 2️⃣ Delete media from Cloudinary if exists
+    for (const msg of messages) {
+      if (msg.messageType === 'image' || msg.messageType === 'video') {
+        try {
+          const url = msg.messageUrl?.senderUrl; // Use one URL, or store public_id separately
+          if (url) {
+            const publicId = url.split('/').pop().split('.')[0]; // Extract Cloudinary public_id
+            await cloudinary.uploader.destroy(
+              `vaarta_app/${msg.messageType === 'image' ? 'sendImages' : 'sendVideos'}/${publicId}`,
+              { resource_type: msg.messageType === 'image' ? 'image' : 'video' }
+            );
+          }
+        } catch (err) {
+          console.error('Cloudinary delete error:', err);
+        }
+      }
+    }
+
+    // 3️⃣ Delete all messages
+    await Message.deleteMany({
+      $or: [{ senderId: userId }, { receiverId: userId }],
+    }).session(session);
+
+    // 4️⃣ Delete the user
+    await User.findByIdAndDelete(userId).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ message: 'Account and all related messages/media deleted successfully' });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error('Delete account error:', error);
+    res.status(500).json({ message: "Something went wrong i don't know" });
+  }
+};
 
 exports.createUser = async (req,res) => {
     const { name, mobile, password } = req.body;
@@ -250,33 +255,51 @@ exports.loginUser = async (req,res) => {
     }
 }
 
-exports.friendsList = async (req,res) => {
-    try{
-        const contactList = req.body;
-        if(!Array.isArray(contactList) || contactList.length == 0){
-            return res.status(400).json({message:"No contacts provide"})
-        }
+exports.friendsList = async (req, res) => {
+  try {
+    const contactList = req.body;
 
-        const phones = contactList.map(c => c.normalizedPhone);
-
-        const users = await User.find({mobile: { $in: phones}}).select("_id profileImage mobile").lean();
-
-        const usersMap = new Map(users.map(u => [u.mobile,u]));
-        for(const contact of contactList){
-            const user = usersMap.get(contact.normalizedPhone);
-            contact.availableInApp = !!user;
-            if(user){
-                contact.id = user._id;
-                contact.profileImage = user.profileImage;
-            }
-        }
-
-        return res.status(200).json({message:"Contact processed successfully",data:contactList});
-    }catch(error){
-        console.error("FriendList error: ",error);
-        return res.status(500).json({message: "Internal server error"});
+    if (!Array.isArray(contactList) || contactList.length === 0) {
+      return res.status(400).json({ message: "No contacts provided" });
     }
-}
+
+    const phones = contactList.map(c => c.normalizedPhone);
+
+    const users = await User.find({ mobile: { $in: phones } })
+      .select("_id profileImage mobile")
+      .lean();
+
+    const usersMap = new Map(users.map(u => [u.mobile, u]));
+
+    // Option A: mutate in place (fastest, least memory)
+    for (const contact of contactList) {
+      const user = usersMap.get(contact.normalizedPhone);
+      contact.availableInApp = !!user;
+      if (user) {
+        contact.id = user._id;
+        contact.profileImage = user.profileImage;
+      }
+    }
+
+    // Option B: create new objects (safer if you need immutability)
+    const updatedContacts = contactList.map(contact => {
+      const user = usersMap.get(contact.normalizedPhone);
+      return user
+        ? { ...contact, availableInApp: true, id: user._id, profileImage: user.profileImage }
+        : { ...contact, availableInApp: false };
+    });
+
+    return res.status(200).json({
+      message: "Contacts processed successfully",
+      data: contactList   // ← mutated version
+      // data: updatedContacts   // ← if using new objects
+    });
+
+  } catch (error) {
+    console.error("friendsList error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 exports.getProfile = async (req,res) => {
     const token = req.user.userId;
@@ -413,7 +436,6 @@ exports.setDeviceToken = async (req, res) => {
             .json({ message: "Internal server error. Please try again later" });
     }
 };
-
 
 exports.deleteDeviceToken = async (req, res) => {
     const userId = req.user.userId;
