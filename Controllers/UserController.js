@@ -359,7 +359,7 @@ exports.generateToken = async (req,res) => {
         return res.status(200).json({accessToken:newAccessToken});
     }
     catch(err){
-        console.log("Error in access token generating"+e);
+        console.log("Error in access token generating"+err);
         return res.status(500).json({message:"Internal server error"});
     }
 }
